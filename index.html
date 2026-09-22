@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>모의고사 영어 정답 수집기</title>
+<style>
+body{font-family:system-ui,"Malgun Gothic",sans-serif;max-width:1050px;margin:40px auto;padding:0 20px;background:#f4f7fb;color:#17212b}
+section{background:white;border:1px solid #dbe3ed;border-radius:16px;padding:24px;margin:20px 0}
+.choices{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;margin:10px 0 22px}
+.choices label,.result{border:1px solid #dbe3ed;border-radius:8px;padding:10px}
+.choices label{cursor:pointer}.choices label:has(input:checked){background:#eaf3ff;border-color:#145db3}
+button{border:0;border-radius:8px;padding:11px 17px;margin-right:8px;cursor:pointer;font:inherit;font-weight:700;background:#e9f0f9;color:#174b83}
+button.primary{background:#145db3;color:white}button:disabled{opacity:.5;cursor:not-allowed}
+.result{margin:12px 0}.result.error{background:#fff7f6;border-color:#edaaa5}.result.ready{background:#f6fcf7;border-color:#a8d6b4}
+.result h3{margin:0}.result a{margin-left:8px}#status{margin-top:15px}
+.tabs{display:flex;gap:8px;margin-top:24px}.tabs button[aria-selected="true"]{background:#145db3;color:white}
+[hidden]{display:none!important}
+</style></head><body><main>
+<h1>모의고사 영어 정답 수집기</h1>
+<p>EBSi에서 영어 정답표를 찾아 JSON으로 저장합니다. A/B형이 있으면 둘 다, 홀수·짝수형이 있으면 홀수형만 수집합니다.</p>
+<nav class="tabs" role="tablist"><button id="answers-tab" role="tab" aria-selected="true" aria-controls="answers-panel">정답 JSON</button><button id="question-tab" role="tab" aria-selected="false" aria-controls="question-panel">문제지 PDF</button><button id="explanation-tab" role="tab" aria-selected="false" aria-controls="explanation-panel">해설 PDF</button></nav>
+<div id="answers-panel" role="tabpanel"><section><h2>시험 세트 선택</h2>
+<strong>학년</strong><div id="grades" class="choices"></div>
+<strong>시행 연도</strong><div id="years" class="choices"></div>
+<strong>시행 월</strong><div id="months" class="choices"></div>
+<button id="search" class="primary">정답 찾기</button><button id="save-all" disabled>찾은 정답 모두 저장</button>
+<p>EBSi 목록은 2006년부터 제공됩니다. 자료가 없거나 자동 판독이 불확실하면 오류로 표시합니다.</p><div id="status" role="status"></div>
+</section><section><h2>조회 결과</h2><div id="results">아직 조회한 세트가 없습니다.</div></section></div>
+<div id="question-panel" role="tabpanel" hidden><section><h2>문제지 시험 세트 선택</h2>
+<strong>학년</strong><div id="question-grades" class="choices"></div>
+<strong>시행 연도</strong><div id="question-years" class="choices"></div>
+<strong>시행 월</strong><div id="question-months" class="choices"></div>
+<button id="question-search" class="primary">문제지 찾기</button><button id="question-all" disabled>찾은 문제지 모두 다운로드</button><div id="question-status" role="status"></div>
+</section><section><h2>문제지 조회 결과</h2><div id="question-results">아직 조회한 세트가 없습니다.</div></section></div>
+<div id="explanation-panel" role="tabpanel" hidden><section><h2>해설 시험 세트 선택</h2>
+<strong>학년</strong><div id="explanation-grades" class="choices"></div>
+<strong>시행 연도</strong><div id="explanation-years" class="choices"></div>
+<strong>시행 월</strong><div id="explanation-months" class="choices"></div>
+<button id="explanation-search" class="primary">해설 찾기</button><button id="explanation-all" disabled>찾은 해설 모두 다운로드</button><div id="explanation-status" role="status"></div>
+</section><section><h2>해설 조회 결과</h2><div id="explanation-results">아직 조회한 세트가 없습니다.</div></section></div>
+</main><script>
+const searchButton=document.getElementById('search'),saveAllButton=document.getElementById('save-all');
+const results=document.getElementById('results'),status=document.getElementById('status');let found=[];
+function addChoices(id,name,values,label){const parent=document.getElementById(id);for(const value of values){const wrapper=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.name=name;box.value=value;wrapper.append(box,document.createTextNode(label(value)));parent.append(wrapper)}}
+addChoices('grades','grade',[1,2,3],v=>'고'+v);
+addChoices('years','year',Array.from({length:new Date().getFullYear()-2001},(_,i)=>2002+i),v=>v+'년');
+addChoices('months','month',Array.from({length:12},(_,i)=>i+1),v=>v+'월');
+for(const tab of ['question','explanation']){
+  addChoices(tab+'-grades',tab+'-grade',[1,2,3],v=>'고'+v);
+  addChoices(tab+'-years',tab+'-year',Array.from({length:new Date().getFullYear()-2001},(_,i)=>2002+i),v=>v+'년');
+  addChoices(tab+'-months',tab+'-month',Array.from({length:12},(_,i)=>i+1),v=>v+'월');
+}
+for(const tab of document.querySelectorAll('[role="tab"]'))tab.onclick=()=>{for(const other of document.querySelectorAll('[role="tab"]')){const active=other===tab;other.setAttribute('aria-selected',String(active));document.getElementById(other.getAttribute('aria-controls')).hidden=!active}};
+const selected=name=>[...document.querySelectorAll('input[name="'+name+'"]:checked')].map(el=>Number(el.value));
+const filename=d=>d.grade+'-['+d.year+'-'+String(d.month).padStart(2,'0')+']'+(d.variant?'-'+d.variant:'')+'.json';
+function download(blob,name){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function save(data){download(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json;charset=utf-8'}),filename(data))}
+function crc32(bytes){let crc=0xffffffff;for(const byte of bytes){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^(-(crc&1)&0xedb88320)}return(crc^0xffffffff)>>>0}
+function makeZip(items){
+  const encoder=new TextEncoder(),parts=[],directory=[];let offset=0;
+  for(const item of items){
+    const name=encoder.encode(filename(item)),body=encoder.encode(JSON.stringify(item,null,2)+'\n'),crc=crc32(body);
+    const local=new ArrayBuffer(30),l=new DataView(local);
+    l.setUint32(0,0x04034b50,true);l.setUint16(4,20,true);l.setUint16(6,0x800,true);
+    l.setUint32(14,crc,true);l.setUint32(18,body.length,true);l.setUint32(22,body.length,true);l.setUint16(26,name.length,true);
+    parts.push(local,name,body);
+    const central=new ArrayBuffer(46),c=new DataView(central);
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);
+    c.setUint32(16,crc,true);c.setUint32(20,body.length,true);c.setUint32(24,body.length,true);
+    c.setUint16(28,name.length,true);c.setUint32(42,offset,true);
+    directory.push(central,name);offset+=30+name.length+body.length;
+  }
+  const centralSize=directory.reduce((n,p)=>n+p.byteLength,0),end=new ArrayBuffer(22),e=new DataView(end);
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,items.length,true);e.setUint16(10,items.length,true);
+  e.setUint32(12,centralSize,true);e.setUint32(16,offset,true);
+  return new Blob([...parts,...directory,end],{type:'application/zip'});
+}
+function showResult(set,data,error,label=''){const card=document.createElement('div');card.className='result '+(error?'error':'ready');const title=document.createElement('h3');title.textContent='고'+set.grade+' · '+set.year+'년 '+set.month+'월'+(data?.variant?' · 영어 '+data.variant+'형':label?' · '+label:'');const p=document.createElement('p');p.textContent=error||(data.answers.length+'개 정답 확인 · '+filename(data));card.append(title,p);if(data){const button=document.createElement('button');button.textContent='JSON 저장';button.onclick=()=>save(data);const a=document.createElement('a');a.href=data.sourceFile;a.target='_blank';a.rel='noopener noreferrer';a.textContent='정답표 확인';card.append(button,a)}results.append(card)}
+searchButton.onclick=async()=>{const grades=selected('grade'),years=selected('year'),months=selected('month');if(!grades.length||!years.length||!months.length){status.textContent='학년, 시행 연도, 월을 각각 하나 이상 선택하세요.';return}const sets=years.flatMap(year=>months.flatMap(month=>grades.map(grade=>({year,month,grade}))));found=[];results.replaceChildren();saveAllButton.disabled=true;searchButton.disabled=true;let failed=0;try{for(const [i,set] of sets.entries()){status.textContent=(i+1)+'/'+sets.length+'개 시험 세트 조회 중…';try{const response=await fetch('/api/answers?'+new URLSearchParams(set)),payload=await response.json();if(!response.ok)throw Error(payload.error||'정답을 찾지 못했습니다.');for(const data of payload.results){if(![45,50].includes(data.answers.length)||data.answers.some((a,i)=>a.number!==i+1||![1,2,3,4,5].includes(a.answer)))throw Error('정답 검증에 실패했습니다.');found.push(data);showResult(set,data,null)}for(const item of payload.errors){failed++;showResult(set,null,item.error,item.label)}}catch(error){failed++;showResult(set,null,error.message)}}status.textContent=found.length+'개 성공, '+failed+'개 실패';saveAllButton.disabled=!found.length}finally{searchButton.disabled=false}};
+saveAllButton.onclick=()=>{if(!found.length)return;if(found.length===1){save(found[0]);return}download(makeZip(found),'영어-정답-'+new Date().toISOString().slice(0,10)+'.zip');status.textContent=found.length+'개 JSON 파일을 ZIP으로 다운로드했습니다.'};
+const pdfTabs={question:{kind:'q',items:[]},explanation:{kind:'a',items:[]}};
+const pdfName=(set,kind,variant='')=>'고'+set.grade+'-['+set.year+'-'+String(set.month).padStart(2,'0')+']'+(variant?'-'+variant:'')+(kind==='a'?'-A':'')+'.pdf';
+async function pdfBlob(item){const params=new URLSearchParams({...item.set,kind:item.kind,variant:item.variant||''}),response=await fetch('/api/pdf?'+params);if(!response.ok){const payload=await response.json();throw Error(payload.error||'PDF ????? ??????.')}return response.blob()}
+async function savePdf(item){download(await pdfBlob(item),pdfName(item.set,item.kind,item.variant))}
+function zipFiles(items){const encoder=new TextEncoder(),parts=[],directory=[];let offset=0;for(const item of items){const name=encoder.encode(item.name),body=new Uint8Array(item.body),crc=crc32(body),local=new ArrayBuffer(30),l=new DataView(local);l.setUint32(0,0x04034b50,true);l.setUint16(4,20,true);l.setUint16(6,0x800,true);l.setUint32(14,crc,true);l.setUint32(18,body.length,true);l.setUint32(22,body.length,true);l.setUint16(26,name.length,true);parts.push(local,name,body);const central=new ArrayBuffer(46),c=new DataView(central);c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint32(16,crc,true);c.setUint32(20,body.length,true);c.setUint32(24,body.length,true);c.setUint16(28,name.length,true);c.setUint32(42,offset,true);directory.push(central,name);offset+=30+name.length+body.length}const size=directory.reduce((n,p)=>n+p.byteLength,0),end=new ArrayBuffer(22),e=new DataView(end);e.setUint32(0,0x06054b50,true);e.setUint16(8,items.length,true);e.setUint16(10,items.length,true);e.setUint32(12,size,true);e.setUint32(16,offset,true);return new Blob([...parts,...directory,end],{type:'application/zip'})}
+for(const [tab,state] of Object.entries(pdfTabs)){
+  const search=document.getElementById(tab+'-search'),all=document.getElementById(tab+'-all'),statusEl=document.getElementById(tab+'-status'),resultsEl=document.getElementById(tab+'-results');
+  search.onclick=async()=>{const grades=selected(tab+'-grade'),years=selected(tab+'-year'),months=selected(tab+'-month');if(!grades.length||!years.length||!months.length){statusEl.textContent='학년, 시행 연도, 월을 각각 하나 이상 선택하세요.';return}const sets=years.flatMap(year=>months.flatMap(month=>grades.map(grade=>({year,month,grade}))));state.items=[];resultsEl.replaceChildren();all.disabled=true;search.disabled=true;let failed=0;try{for(const [i,set] of sets.entries()){statusEl.textContent=(i+1)+'/'+sets.length+'개 시험 세트 조회 중…';try{const response=await fetch('/api/pdfs?'+new URLSearchParams(set)),payload=await response.json();if(!response.ok)throw Error(payload.error||'PDF를 찾지 못했습니다.');for(const entry of payload.results){if(!entry.available.includes(state.kind))continue;const item={set,kind:state.kind,variant:entry.variant};state.items.push(item);const card=document.createElement('div');card.className='result ready';const heading=document.createElement('h3');heading.textContent='고'+set.grade+' · '+set.year+'년 '+set.month+'월 · '+entry.title;const detail=document.createElement('p');detail.textContent=pdfName(set,state.kind,entry.variant);const button=document.createElement('button');button.textContent='PDF 다운로드';button.onclick=async()=>{button.disabled=true;try{await savePdf(item)}catch(error){statusEl.textContent=error.message}finally{button.disabled=false}};card.append(heading,detail,button);resultsEl.append(card)}}catch(error){failed++;const card=document.createElement('div');card.className='result error';card.textContent='고'+set.grade+' · '+set.year+'년 '+set.month+'월: '+error.message;resultsEl.append(card)}}statusEl.textContent=state.items.length+'개 PDF 확인, '+failed+'개 세트 실패';all.disabled=!state.items.length}finally{search.disabled=false}};
+  all.onclick=async()=>{if(!state.items.length)return;all.disabled=true;statusEl.textContent='PDF를 모으는 중…';const files=[],errors=[];for(const [i,item] of state.items.entries()){statusEl.textContent=(i+1)+'/'+state.items.length+'개 PDF 다운로드 중…';try{const blob=await pdfBlob(item),base=pdfName(item.set,item.kind,item.variant);const duplicates=state.items.filter(other=>pdfName(other.set,other.kind,other.variant)===base).length;const name=duplicates>1?(item.variant||'기본형')+'/'+base:base;files.push({name,body:await blob.arrayBuffer()})}catch(error){errors.push(pdfName(item.set,item.kind,item.variant)+': '+error.message)}}if(files.length){if(files.length===1)download(new Blob([files[0].body],{type:'application/pdf'}),files[0].name);else download(zipFiles(files),(state.kind==='q'?'문제지':'해설')+'-PDF-'+new Date().toISOString().slice(0,10)+'.zip')}statusEl.textContent=files.length+'개 다운로드 완료'+(errors.length?', '+errors.length+'개 실패: '+errors.join('; '):'');all.disabled=false};
+}
+</script></body></html>
