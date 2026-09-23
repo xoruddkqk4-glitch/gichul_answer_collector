@@ -50,15 +50,22 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     kind = query["kind"][0]
                     variant = query.get("variant", [""])[0]
-                    if kind not in ("q", "a") or not re.fullmatch(r"[AB]?", variant):
+                    if kind not in ("q", "a", "s") or not re.fullmatch(r"[AB]?", variant):
                         raise ValueError("PDF 종류 또는 유형이 올바르지 않습니다.")
                     matches = [entry for entry in entries if (entry["variant"] or "") == variant]
-                    if len(matches) != 1 or kind not in matches[0]["files"]:
+                    if len(matches) != 1:
                         raise ValueError("선택한 PDF가 EBSi 목록에 없습니다.")
-                    body = fetch(matches[0]["files"][kind])
+                    entry_files = matches[0]["files"]
+                    target_url = entry_files.get(kind)
+                    if not target_url and kind == "s":
+                        target_url = entry_files.get("a")
+                    if not target_url:
+                        raise ValueError("선택한 PDF가 EBSi 목록에 없습니다.")
+                    body = fetch(target_url)
                     if not body.startswith(b"%PDF-"):
                         raise ValueError("EBSi에서 유효한 PDF를 받지 못했습니다.")
-                    name = f"고{grade}-[{year}-{month:02d}]" + (f"-{variant}" if variant else "") + ("-A" if kind == "a" else "") + ".pdf"
+                    suffix = "-A" if kind == "a" else ("_script" if kind == "s" else "")
+                    name = f"고{grade}-[{year}-{month:02d}]" + (f"-{variant}" if variant else "") + suffix + ".pdf"
                     self.send_response(200)
                     self.send_header("Content-Type", "application/pdf")
                     self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(name))

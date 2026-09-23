@@ -12,7 +12,7 @@ EBSi 목록은 2006년부터 제공되므로 2002~2005년 자료는 여기서 �
 - **2단계 하이브리드 정답 추출 엔진**:
   - 1순위: 해설 PDF 텍스트 파싱 (`pypdf` 및 `PyMuPDF` 다중 엔진 지원)
   - 2순위 Fallback: EBSi 정답표 이미지 격자 검출(Pillow) 및 템플릿 매칭 OCR (`templates.json`)
-- **문제지 및 해설 PDF 다운로드**: EBSi CDN 링크를 안전하게 중계하여 단일 다운로드 및 일괄 ZIP 압축 다운로드 제공
+- **문제지, 해설 및 대본 PDF 다운로드**: EBSi CDN 링크를 안전하게 중계하여 단일 다운로드 및 일괄 ZIP 압축 다운로드 제공 (대본 미제공 세트는 해설 PDF로 안전하게 대체 Fallback 지원)
 - **경량 프론트엔드**: 외부 프레임워크나 번들러 없이 순수 바닐라 JS 및 자체 구현 PKZIP 2.0 인코더로 브라우저 내 압축 수행
 
 ## 업데이트 이력
@@ -25,3 +25,19 @@ EBSi 목록은 2006년부터 제공되므로 2002~2005년 자료는 여기서 �
 - **검증 결과**:
   - Python 정적 구문 검사(`python -m py_compile server.py extractor.py pdf_download.py`) 통과 (exit code 0)
   - Git remote 및 브랜치(`main`) 설정 정상 검증 완료
+
+## [2026-09-23 11:23] 업데이트 이력 (Commit ID: 30d36be)
+- **수정 내용**:
+  - 대본 PDF 탭 및 전용 패널(`script-panel`) 추가 (`index.html`)
+  - EBSi 기출문제 목록에서 듣기평가 대본 링크(`goDownLoadD`) 수집 로직 추가 (`pdf_download.py`)
+  - 대본(`kind='s'`) 다운로드 및 대본 미제공 시험에 대한 해설 PDF 대체(Fallback) 다운로드 처리 (`server.py`)
+  - 대본 파일명 명명 규칙 반영 (`고{grade}-[{year}-{month:02d}]{-variant}_script.pdf`)
+  - 대본 일괄 ZIP 압축 다운로드(`대본-PDF-YYYY-MM-DD.zip`) 지원
+  - 서버 미재시작 시 구버전 프로세스(PID 22512)에 의한 422 오류(`PDF 종류 또는 유형이 올바르지 않습니다.`) 원인 규명 및 재시작 해결 안내
+- **검증 결과**:
+  - Python 정적 구문 검사(`python -m py_compile server.py extractor.py pdf_download.py`) 통과 (exit code 0)
+  - 단위/통합 테스트:
+    - 2023년 9월 고3: 원본 대본 PDF 수집 및 `고3-[2023-09]_script.pdf` (정상 366KB PDF)
+    - 2013년 9월 고3 A/B형: `고3-[2013-09]-A_script.pdf`, `고3-[2013-09]-B_script.pdf` 정상 수집
+    - 2006년 4월 고3(대본 미제공 세트): 해설 PDF 대체 다운로드(`고3-[2006-04]_script.pdf`, 정상 366KB PDF) 확인
+

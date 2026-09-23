@@ -27,7 +27,7 @@ def find_pdfs(year, month, grade):
         variant_match = re.search(r"영어\s*([AB])(?![A-Za-z])", title)
         variant = variant_match.group(1) if variant_match else None
         files = {}
-        for kind, function in (("q", "P"), ("a", "H")):
+        for kind, function in (("q", "P"), ("a", "H"), ("s", "D")):
             match = re.search(r"goDownLoad" + function + r"\('([^']+\.pdf)'", block)
             if match:
                 url = "https://wdown.ebsi.co.kr/W61001/01exam" + html.unescape(match.group(1))
